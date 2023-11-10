@@ -15,6 +15,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Threading.Tasks;
 using System.Threading;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace HW_21._10_thread_
 {
@@ -23,7 +24,15 @@ namespace HW_21._10_thread_
     /// </summary>
     public partial class MainWindow : Window
     {
-      public MainWindow()
+        private bool shouldStopPri = false;
+        private bool shouldPausePri = false;
+        private bool shouldStopFib = false;
+        private bool shouldPauseFib = false;
+
+        private ManualResetEventSlim pauseEventPri = new ManualResetEventSlim(true);
+        private ManualResetEventSlim pauseEventFib = new ManualResetEventSlim(true);
+
+        public MainWindow()
         {
             InitializeComponent();
         }
@@ -59,48 +68,44 @@ namespace HW_21._10_thread_
             }
         }
 
-        private bool shouldStop = false;
-        private void StopThread()
-        {
-            shouldStop = true;
-        }
-        private void Start_Click(object sender, RoutedEventArgs e)
-        {
-            shouldStop = false;
-            Thread thread = new Thread(PrimeNumberGeneric);
-            thread.Start();
-        }
-
+              
         private void PrimeNumberGeneric()
         {
-            Dispatcher.Invoke(() =>// без цього не працює
+            int start = 2, end = 1000;
+            Dispatcher.Invoke(() =>
             {
-            List<int> primeNumbers = new List<int>();
-            PrimeNumbers.ItemsSource = primeNumbers;
-             int start = 2, end = 1000;
-            if (Begin.Text != "Begin" && End.Text == "End")
-            { start = int.Parse(Begin.Text); }
-            else if (Begin.Text == "Begin" && End.Text != "End")
-            { end = int.Parse(End.Text); }
-            else if (Begin.Text != "Begin" && End.Text != "End")
-            { start = int.Parse(Begin.Text); end = int.Parse(End.Text); }
-
-            for (int number = start; number <= end; number++)
+                if (Begin.Text != "Begin" && End.Text == "End")
+                { start = int.Parse(Begin.Text); }
+                else if (Begin.Text == "Begin" && End.Text != "End")
+                { end = int.Parse(End.Text); }
+                else
+                if (Begin.Text != "Begin" && End.Text != "End")
+                { start = int.Parse(Begin.Text); end = int.Parse(End.Text); }
+                MessageBox.Show($"Range: {start} - {end}");
+            });
+            for (int number = start; number < end; number++)
             {
-                if (IsPrime(number))
-                {
-                    primeNumbers.Add(number);
-                }
-            }
-                if (shouldStop)
+                if (shouldStopPri)
                 {
                     return;
                 }
-                Dispatcher.Invoke(() =>
+                
+                if (shouldPausePri)
                 {
-                    PrimeNumbers.ItemsSource = primeNumbers;
-                });
-            });
+                    pauseEventPri.Wait();
+                }
+
+                if (IsPrime(number))
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        PrimeNumbers.Items.Add(number);
+                    });
+
+                    Thread.Sleep(1000);
+                }
+            }
+
         }
         private bool IsPrime(int number)
         {
@@ -117,38 +122,100 @@ namespace HW_21._10_thread_
             }
             return true;
         }
- 
+        private void Start_Click(object sender, RoutedEventArgs e)
+        {
+            shouldStopPri = false;
+            PrimeNumbers.Items.Clear();
+            Thread thread = new Thread(PrimeNumberGeneric);
+            thread.Start();
+        }
+        private void StopThreadPri()
+        {
+            shouldStopPri = true;
+        }
         private void Stop_Click(object sender, RoutedEventArgs e)
         {
-            StopThread();
-        }
+            StopThreadPri();
 
-        private void Start1_Click(object sender, RoutedEventArgs e)
+        }
+        private void Pause_Click(object sender, RoutedEventArgs e)
         {
-            shouldStop = false;
-            Thread thr = new Thread(GenerateFibonacci);
-            thr.Start();
-        }
-        private void GenerateFibonacci()
-        { // а тут працює
-            int n = 20;
-            List<int> fibonacciNumbers = new List<int>();
+            shouldPausePri = true;
+            pauseEventPri.Reset();
 
+        }
+        private void Resume_Click(object sender, RoutedEventArgs e)
+        {
+            shouldPausePri = false;
+            pauseEventPri.Set();
+        }
+
+        private void GenerateFibonacci()
+        { 
+            int n = 100;
             {
-                int a = 0;
+                int a = 1;
                 int b = 1;
-                for (int i = 0; i < n; i++)
+                for (int i = 1; i < n; i++)
                 {
-                    fibonacciNumbers.Add(a);
+                    Dispatcher.Invoke(() =>
+                        Fibonachi.Items.Add(a));
+                    Thread.Sleep(1000);
                     int temp = a;
                     a = b;
                     b = temp + b;
+                    if (shouldStopFib)
+                    {
+                        return;
+                    }
+                    if (shouldPauseFib)
+                    {
+                        pauseEventFib.Wait();
+                    }
                 }
+               
             }
-            Dispatcher.Invoke(() =>
-            {
-                Fibonachi.ItemsSource = fibonacciNumbers;
-            });
+         }
+        private void Start1_Click(object sender, RoutedEventArgs e)
+        {
+            shouldStopFib = false;
+            Fibonachi.Items.Clear();
+            Thread thr = new Thread(GenerateFibonacci);
+            thr.Start();
+        }
+        private void Pause1_Click(object sender, RoutedEventArgs e)
+        {
+            shouldPauseFib = true;
+            pauseEventFib.Reset();
+        }
+        private void StopThreadFib()
+        {
+            shouldStopFib = true;
+        }
+        private void Stop1_Click(object sender, RoutedEventArgs e)
+        {
+            StopThreadFib();
+        }
+
+        private void Stop2_Click(object sender, RoutedEventArgs e)
+        {
+            StopThreadFib();
+            StopThreadPri();
+        }
+        private void Restart_Click(object sender, RoutedEventArgs e)
+        {
+            StopThreadFib();
+            StopThreadPri();
+            PrimeNumbers.Items.Clear();
+            Fibonachi.Items.Clear();
+            Begin.Text = "Begin";
+            End.Text = "End";
+        }
+
+        private void Resume1_Click(object sender, RoutedEventArgs e)
+        {
+            shouldPauseFib = false;
+            pauseEventFib.Set();
         }
     }
 }
